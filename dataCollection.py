@@ -3,6 +3,10 @@ import datetime
 import time
 import pandas as pd
 
+#deribit API
+clientID = "KQWpIu3V"
+clientSecret = "0GPGBoEWRgGGC0gtIxhQl57RJaDOQ8BbgJuTALbTDyY"
+
 #handle error codes
 def coinbaseError(errorCode):
     if errorCode==200:
@@ -60,4 +64,5 @@ while currentTime.timestamp() > firstTime:
     currentTime = BTCtimes[-1]
     time.sleep(0.1)
 
-btc_prices = pd.DataFrame(data={"close": BTCclosePrices})
+btc_prices = pd.DataFrame(data={"close": BTCclosePrices}, index=BTCtimes)
+print(btc_prices)
