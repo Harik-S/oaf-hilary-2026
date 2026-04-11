@@ -48,7 +48,7 @@ def getCandles(endTime, startTime, granularity=3600):
 BTCtimes=[]
 BTCclosePrices=[]
 firstTime = 1609459200 # 1-1-2021
-currentTime = datetime.datetime.now(datetime.UTC)
+currentTime = datetime.datetime.now(datetime.timezone.utc)
 prevTime = currentTime.timestamp()
 while currentTime.timestamp() > firstTime:
     startTime = (currentTime - datetime.timedelta(hours=300))
@@ -65,4 +65,8 @@ while currentTime.timestamp() > firstTime:
     time.sleep(0.1)
 
 btc_prices = pd.DataFrame(data={"close": BTCclosePrices}, index=BTCtimes)
-print(btc_prices)
+btc_prices.index = pd.to_datetime(btc_prices.index, utc=True)
+import os
+os.makedirs("data", exist_ok=True)
+btc_prices.to_csv("data/btc_prices.csv", index=True)
+print(f"Saved btc_prices.csv ({len(btc_prices)} rows)")
