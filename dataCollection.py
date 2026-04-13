@@ -2,6 +2,9 @@ import requests
 import datetime
 import time
 import pandas as pd
+import numpy as np
+from collections import deque
+import os
 
 #deribit API
 clientID = "KQWpIu3V"
@@ -56,17 +59,48 @@ while currentTime.timestamp() > firstTime:
         startTime = datetime.datetime.fromtimestamp(firstTime)
     rawData=getCandles(endTime=currentTime,startTime=startTime)
     for i in rawData:
+        if (prevTime-i[0] > 3600):
+            print("Warning, gap to previous time is " + str(prevTime - i[0]))
+            print(datetime.datetime.fromtimestamp(prevTime))
+            while prevTime > i[0]:
+                prevTime-=3600
+                BTCtimes.append(datetime.datetime.fromtimestamp(prevTime))
+                BTCclosePrices.append(i[4])
         BTCtimes.append(datetime.datetime.fromtimestamp(i[0]))
         BTCclosePrices.append(i[4])
-        if (i[0]-prevTime > 3600):
-            print("Warning, gap to previous time is " + str(i[0]-prevTime))
         prevTime=i[0]
     currentTime = BTCtimes[-1]
     time.sleep(0.1)
 
-btc_prices = pd.DataFrame(data={"close": BTCclosePrices}, index=BTCtimes)
+BTCtimes.reverse()
+BTCclosePrices.reverse()
+
+# subtask 3
+rv_5d = [np.nan]
+n=120 #number of hours in the timeperiod, in this case 5*24=120
+buffer = deque(maxlen = n)
+sum_log_returns=0.0
+for i in range(1,len(BTCclosePrices)):
+    x=np.log(BTCclosePrices[i]/BTCclosePrices[i-1])
+    sq = x * x
+    if (len(buffer)==n):
+        sum_log_returns-=buffer[0]
+
+    buffer.append(sq)
+    sum_log_returns+=sq
+    
+    if (len(buffer)==n):
+        rv_5d.append(np.sqrt(sum_log_returns/n) * np.sqrt(8760))
+    else:
+        rv_5d.append(np.nan)
+
+
+        
+
+btc_prices = pd.DataFrame(data={"close": BTCclosePrices, "rv_5d": rv_5d}, index=BTCtimes)
 btc_prices.index = pd.to_datetime(btc_prices.index, utc=True)
-import os
+
+
 os.makedirs("data", exist_ok=True)
 btc_prices.to_csv("data/btc_prices.csv", index=True)
 print(f"Saved btc_prices.csv ({len(btc_prices)} rows)")
