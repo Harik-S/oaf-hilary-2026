@@ -335,7 +335,7 @@ def extract_entry_prices(entry_trades_df: pd.DataFrame,
 
         results.append({
         "entry_price":      entry_row["price"]            if "price"            in entry_row.index else np.nan,
-        "entry_iv":         entry_row["iv"]               if "iv"               in entry_row.index else np.nan,
+        "entry_iv":         entry_row["iv"]/100               if "iv"               in entry_row.index else np.nan,
         "entry_underlying": entry_row["underlying_price"] if "underlying_price" in entry_row.index else np.nan,
         "entry_gap_hours":  round(entry_gap_hours, 2),
         "data_quality_ok":  data_quality_ok,})
@@ -437,7 +437,7 @@ def collect_options_data(sessions:   pd.DataFrame,
     # Drop IV data errors (> 500% annualised is clearly wrong)
     if "entry_iv" in options_df.columns:
         options_df = options_df[
-            options_df["entry_iv"].isna() | (options_df["entry_iv"] <= 500.0)
+            options_df["entry_iv"].isna() | (options_df["entry_iv"] <= 5.0)
         ]
 
     options_df = options_df.sort_values(
