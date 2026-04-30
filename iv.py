@@ -2,12 +2,13 @@
 # run after data collection
 
 import pandas as pd
-
+import numpy as np
 session_signals = pd.read_csv("data/sessions.csv")
 options_df = pd.read_csv("data/options_df.csv")
 
 session_start=session_signals["session_start"].to_list()
 session_type=session_signals["session_type"].to_list()
+session_dow=session_signals["session_dow"].to_list()
 iv=options_df["entry_iv"].to_list()
 atm_iv=[]
 
@@ -51,17 +52,25 @@ session_signals["iv_rank"] = (session_signals["atm_iv"] - session_signals["iv_52
 # RV at open comes from btc_prices.csv, want to merge using some sort of btc_prices.loc[time]
 btc_prices = pd.read_csv("data/btc_prices.csv")
 btc_prices.rename(columns={"Unnamed: 0": "session_start"}, inplace=True)
-
 btc_prices["session_start"] = pd.to_datetime(btc_prices["session_start"], utc=True)
 
-# Merge rv_5d from btc_prices into session_signals based on matching session_start
-session_signals = session_signals.merge(btc_prices[["session_start", "rv_5d"]], on="session_start", how="left")
+btc_prices["log_return"] = np.log(
+    btc_prices["close"] / btc_prices["close"].shift(1)
+)
 
-session_signals["vrp"] = session_signals["atm_iv"] - session_signals["rv_5d"]
+# Step 2: 1-day realized volatility (24 hours)
+btc_prices["rv_1d"] = (
+    np.sqrt((btc_prices["log_return"]**2).rolling(24).mean())
+    * np.sqrt(365 * 24)
+)
+# Merge rv_5d from btc_prices into session_signals based on matching session_start
+session_signals = session_signals.merge(btc_prices[["session_start", "rv_5d", "rv_1d"]], on="session_start", how="left")
+
+session_signals["vrp"] = session_signals["atm_iv"] - session_signals["rv_1d"]
 
 # Trade condition 1: VRP > THRESHOLD
 THRESHOLD = 0.05
-session_signals['signal'] = (session_signals['vrp'] > THRESHOLD) & (session_signals['iv_rank'] > 50)
+session_signals['signal'] = (session_signals['vrp'] > THRESHOLD) & (session_signals['iv_rank'] > 40)
 
 print(session_signals.describe())
 
