@@ -71,28 +71,67 @@ while currentTime.timestamp() > firstTime:
         prevTime=i[0]
     currentTime = BTCtimes[-1]
     time.sleep(0.1)
-
 BTCtimes.reverse()
 BTCclosePrices.reverse()
 
-# subtask 3
-rv_5d = [np.nan]
-n=120 #number of hours in the timeperiod, in this case 5*24=120
-buffer = deque(maxlen = n)
-sum_log_returns=0.0
-for i in range(1,len(BTCclosePrices)):
-    x=np.log(BTCclosePrices[i]/BTCclosePrices[i-1])
-    sq = x * x
-    if (len(buffer)==n):
-        sum_log_returns-=buffer[0]
+# Helper: classify each timestamp as 'weekend' or 'weekday'
+# Weekend = Saturday 8am UTC to Monday 8am UTC
+def is_weekend(dt):
+    # Convert to UTC if not already timezone-aware
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    weekday = dt.weekday()  # Monday=0, Sunday=6
+    hour = dt.hour
 
-    buffer.append(sq)
-    sum_log_returns+=sq
-    
-    if (len(buffer)==n):
-        rv_5d.append(np.sqrt(sum_log_returns/n) * np.sqrt(8760))
-    else:
-        rv_5d.append(np.nan)
+    # Saturday (5) at 08:00 onwards
+    if weekday == 5 and hour >= 8:
+        return True
+    # All of Sunday (6)
+    if weekday == 6:
+        return True
+    # Monday (0) before 08:00
+    if weekday == 0 and hour < 8:
+        return True
+    return False
+
+# Assign flags
+day_flags = ['weekend' if is_weekend(dt) else 'weekday' for dt in BTCtimes]
+
+# subtask 3 - separate RV buffers for weekday and weekend
+rv_5d = [np.nan]
+n = 120  # 5 * 24 hours
+
+weekday_buffer = deque(maxlen=n)
+weekend_buffer = deque(maxlen=n)
+weekday_sum = 0.0
+weekend_sum = 0.0
+
+for i in range(1, len(BTCclosePrices)):
+    x = np.log(BTCclosePrices[i] / BTCclosePrices[i-1])
+    sq = x * x
+    flag = day_flags[i]
+
+    if flag == 'weekday':
+        if len(weekday_buffer) == n:
+            weekday_sum -= weekday_buffer[0]
+        weekday_buffer.append(sq)
+        weekday_sum += sq
+
+        if len(weekday_buffer) == n:
+            rv_5d.append(np.sqrt(weekday_sum / n) * np.sqrt(8760))
+        else:
+            rv_5d.append(np.nan)
+
+    else:  # weekend
+        if len(weekend_buffer) == n:
+            weekend_sum -= weekend_buffer[0]
+        weekend_buffer.append(sq)
+        weekend_sum += sq
+
+        if len(weekend_buffer) == n:
+            rv_5d.append(np.sqrt(weekend_sum / n) * np.sqrt(8760))
+        else:
+            rv_5d.append(np.nan)
 
 
         
