@@ -84,17 +84,55 @@ def generate_session_windows(start: str, end: str) -> pd.DataFrame:
     while current < end_ts:
         dow = current.dayofweek  # 0=Mon, 5=Sat
 
+        """
         if dow == 5 and current.hour == 8:   # Saturday 08:00 → Sunday 08:00
             sessions.append({
                 "session_start": current,
                 "session_close": current + timedelta(hours=24),
                 "session_type":  "weekend"
             })
-        elif dow == 0 and current.hour == 8:  # Monday 08:00 → Tuesday 08:00
+        """
+        if dow == 0 and current.hour == 8:  # Monday 08:00 → Tuesday 08:00
             sessions.append({
                 "session_start": current,
                 "session_close": current + timedelta(hours=24),
-                "session_type":  "weekday"
+                "session_type":  "weekday",
+                "session_dow":  "monday"
+            })
+        if dow == 1 and current.hour == 8:  # Tuesday 08:00 → Wednesday 08:00
+            sessions.append({
+                "session_start": current,
+                "session_close": current + timedelta(hours=24),
+                "session_type":  "weekday",
+                "session_dow":  "tuesday"
+            })
+        if dow == 2 and current.hour == 8:  # Wednesday 08:00 → Thursday 08:00
+            sessions.append({
+                "session_start": current,
+                "session_close": current + timedelta(hours=24),
+                "session_type":  "weekday",
+                "session_dow":  "wednesday"
+            })
+        if dow == 3 and current.hour == 8:  # Thursday 08:00 → Friday 08:00
+            sessions.append({
+                "session_start": current,
+                "session_close": current + timedelta(hours=24),
+                "session_type":  "weekday",
+                "session_dow":  "thursday"
+            })
+        if dow == 4 and current.hour == 8:  # Friday 08:00 → Saturday 08:00
+            sessions.append({
+                "session_start": current,
+                "session_close": current + timedelta(hours=24),
+                "session_type":  "weekday",
+                "session_dow":  "friday"
+            })
+        if dow == 6 and current.hour == 8:  # Sunday 08:00 → Monday 08:00
+            sessions.append({
+                "session_start": current,
+                "session_close": current + timedelta(hours=24),
+                "session_type":  "weekend",
+                "session_dow":  "sunday"
             })
 
         current += timedelta(hours=1)
@@ -371,6 +409,7 @@ def collect_options_data(sessions:   pd.DataFrame,
         s_start = session["session_start"]
         s_close = session["session_close"]
         s_type  = session["session_type"]
+        s_dow   = session["session_dow"] 
 
         # Get BTC spot at session open
         try:
@@ -379,7 +418,7 @@ def collect_options_data(sessions:   pd.DataFrame,
             idx  = btc_prices.index.get_indexer([s_start], method="nearest")[0]
             spot = float(btc_prices.iloc[idx]["close"])
 
-        print(f"\n[{i+1}/{len(sessions)}] {s_type.upper()} | "
+        print(f"\n[{i+1}/{len(sessions)}] {s_type.upper()} | {s_dow.upper()} | "
               f"{s_start.strftime('%Y-%m-%d %H:%M')} → "
               f"{s_close.strftime('%Y-%m-%d %H:%M')} | "
               f"BTC=${spot:,.0f}")
@@ -416,6 +455,7 @@ def collect_options_data(sessions:   pd.DataFrame,
         legs_df["session_start"] = s_start
         legs_df["session_close"] = s_close
         legs_df["session_type"]  = s_type
+        legs_df["session_dow"]   = s_dow 
         legs_df["spot_at_open"]  = spot
 
         all_legs.append(legs_df)
