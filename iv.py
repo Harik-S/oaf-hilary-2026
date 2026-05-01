@@ -50,6 +50,7 @@ session_signals["iv_rank"] = (session_signals["atm_iv"] - session_signals["iv_52
 
 # VRP (atm_iv - rv_at_open)
 # RV at open comes from btc_prices.csv, want to merge using some sort of btc_prices.loc[time]
+ALPHA = 0.2
 btc_prices = pd.read_csv("data/btc_prices.csv")
 btc_prices.rename(columns={"Unnamed: 0": "session_start"}, inplace=True)
 btc_prices["session_start"] = pd.to_datetime(btc_prices["session_start"], utc=True)
@@ -57,20 +58,61 @@ btc_prices["session_start"] = pd.to_datetime(btc_prices["session_start"], utc=Tr
 btc_prices["log_return"] = np.log(
     btc_prices["close"] / btc_prices["close"].shift(1)
 )
+btc_prices["squared_log_return"] = btc_prices["log_return"] ** 2
+
 
 # Step 2: 1-day realized volatility (24 hours)
 btc_prices["rv_1d"] = (
     np.sqrt((btc_prices["log_return"]**2).rolling(24).mean())
     * np.sqrt(365 * 24)
 )
+btc_prices["rv_1d_forward"] = (
+    np.sqrt(
+        btc_prices["squared_log_return"]
+        .shift(-1)
+        .rolling(24)
+        .mean()
+        .shift(-23)
+    )
+    * np.sqrt(365 * 24)
+)
+btc_prices["session_hour"] = btc_prices["session_start"].dt.hour
+btc_prices["day_of_week"] = btc_prices["session_start"].dt.dayofweek
+
+btc_prices["session_hour"] = btc_prices["session_start"].dt.hour
+btc_prices["day_of_week"] = btc_prices["session_start"].dt.dayofweek
+
+HIST_WINDOW = 5
+MIN_HIST_PERIODS = 4
+
+btc_prices["rv_historical_session_avg"] = (
+    btc_prices
+    .groupby(["session_hour", "day_of_week"])["rv_1d_forward"]
+    .transform(
+        lambda x: x.shift(1).rolling(
+            HIST_WINDOW,
+            min_periods=MIN_HIST_PERIODS
+        ).mean()
+    )
+)
 # Merge rv_5d from btc_prices into session_signals based on matching session_start
-session_signals = session_signals.merge(btc_prices[["session_start", "rv_5d", "rv_1d"]], on="session_start", how="left")
+btc_prices["rv_benchmark"] = (
+    ALPHA * btc_prices["rv_1d"]
+    + (1 - ALPHA) * btc_prices["rv_historical_session_avg"]
+)
+session_signals = session_signals.merge(btc_prices[["session_start", "rv_5d", "rv_1d", "rv_historical_session_avg", "rv_benchmark"]], on="session_start", how="left")
 
-session_signals["vrp"] = session_signals["atm_iv"] - session_signals["rv_1d"]
+session_signals["vrp"] = session_signals["atm_iv"] - session_signals["rv_benchmark"]
+session_signals["vrp"]
+VRP_RATIO_THRESHOLD = 1.20
 
+session_signals["vrp_ratio"] = (
+    session_signals["atm_iv"]
+    / session_signals["rv_benchmark"]
+)
 # Trade condition 1: VRP > THRESHOLD
 THRESHOLD = 0.05
-session_signals['signal'] = (session_signals['vrp'] > THRESHOLD) & (session_signals['iv_rank'] > 40)
+session_signals['signal'] = (session_signals['vrp'] > THRESHOLD) & (session_signals['iv_rank'] > 30)
 
 print(session_signals.describe())
 
