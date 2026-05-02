@@ -99,35 +99,42 @@ def generate_session_windows(start: str, end: str) -> pd.DataFrame:
                 "session_type":  "weekday",
                 "session_dow":  "monday"
             })
-        if dow == 1 and current.hour == 8:  # Tuesday 08:00 → Wednesday 08:00
+        elif dow == 1 and current.hour == 8:  # Tuesday 08:00 → Wednesday 08:00
             sessions.append({
                 "session_start": current,
                 "session_close": current + timedelta(hours=24),
                 "session_type":  "weekday",
                 "session_dow":  "tuesday"
             })
-        if dow == 2 and current.hour == 8:  # Wednesday 08:00 → Thursday 08:00
+        elif dow == 2 and current.hour == 8:  # Wednesday 08:00 → Thursday 08:00
             sessions.append({
                 "session_start": current,
                 "session_close": current + timedelta(hours=24),
                 "session_type":  "weekday",
                 "session_dow":  "wednesday"
             })
-        if dow == 3 and current.hour == 8:  # Thursday 08:00 → Friday 08:00
+        elif dow == 3 and current.hour == 8:  # Thursday 08:00 → Friday 08:00
             sessions.append({
                 "session_start": current,
                 "session_close": current + timedelta(hours=24),
                 "session_type":  "weekday",
                 "session_dow":  "thursday"
             })
-        if dow == 4 and current.hour == 8:  # Friday 08:00 → Saturday 08:00
+        elif dow == 4 and current.hour == 8:  # Friday 08:00 → Saturday 08:00
             sessions.append({
                 "session_start": current,
                 "session_close": current + timedelta(hours=24),
                 "session_type":  "weekday",
                 "session_dow":  "friday"
             })
-        if dow == 6 and current.hour == 8:  # Sunday 08:00 → Monday 08:00
+        elif dow == 5 and current.hour == 8:  # Saturday 08:00 → Sunday 08:00
+            sessions.append({
+                "session_start": current,
+                "session_close": current + timedelta(hours=24),
+                "session_type":  "weekday",
+                "session_dow":  "saturday"
+            })
+        elif dow == 6 and current.hour == 8:  # Sunday 08:00 → Monday 08:00
             sessions.append({
                 "session_start": current,
                 "session_close": current + timedelta(hours=24),
