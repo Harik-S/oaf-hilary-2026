@@ -31,11 +31,11 @@ import pandas as pd
 import numpy as np
 import time
 import os
-from datetime import timedelta
+import datetime as dt
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BACKTEST_START      = "2025-01-01"
+BACKTEST_START      = "2023-01-01"
 BACKTEST_END        = "2026-01-01"
 DATA_DIR            = "data"
 DERIBIT_HISTORY_URL = "https://history.deribit.com/api/v2/public"
@@ -43,6 +43,18 @@ DERIBIT_HISTORY_URL = "https://history.deribit.com/api/v2/public"
 # Only look at trades within this many hours of session open for entry pricing.
 # Trades outside this window mean the instrument wasn't liquid at session open.
 ENTRY_WINDOW_HOURS  = 2.0
+
+DOW_STR = {
+        0: 'monday',
+        1: 'tuesday',
+        2: 'wednesday',
+        3: 'thursday',
+        4: 'friday',
+        5: 'saturday',
+        6: 'sunday'
+    }
+
+MONEYNESS = 0.15
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -83,66 +95,15 @@ def generate_session_windows(start: str, end: str) -> pd.DataFrame:
 
     while current < end_ts:
         dow = current.dayofweek  # 0=Mon, 5=Sat
-
-        """
-        if dow == 5 and current.hour == 8:   # Saturday 08:00 → Sunday 08:00
+        if current.hour == 8:
             sessions.append({
                 "session_start": current,
-                "session_close": current + timedelta(hours=24),
-                "session_type":  "weekend"
-            })
-        """
-        if dow == 0 and current.hour == 8:  # Monday 08:00 → Tuesday 08:00
-            sessions.append({
-                "session_start": current,
-                "session_close": current + timedelta(hours=24),
-                "session_type":  "weekday",
-                "session_dow":  "monday"
-            })
-        elif dow == 1 and current.hour == 8:  # Tuesday 08:00 → Wednesday 08:00
-            sessions.append({
-                "session_start": current,
-                "session_close": current + timedelta(hours=24),
-                "session_type":  "weekday",
-                "session_dow":  "tuesday"
-            })
-        elif dow == 2 and current.hour == 8:  # Wednesday 08:00 → Thursday 08:00
-            sessions.append({
-                "session_start": current,
-                "session_close": current + timedelta(hours=24),
-                "session_type":  "weekday",
-                "session_dow":  "wednesday"
-            })
-        elif dow == 3 and current.hour == 8:  # Thursday 08:00 → Friday 08:00
-            sessions.append({
-                "session_start": current,
-                "session_close": current + timedelta(hours=24),
-                "session_type":  "weekday",
-                "session_dow":  "thursday"
-            })
-        elif dow == 4 and current.hour == 8:  # Friday 08:00 → Saturday 08:00
-            sessions.append({
-                "session_start": current,
-                "session_close": current + timedelta(hours=24),
-                "session_type":  "weekday",
-                "session_dow":  "friday"
-            })
-        elif dow == 5 and current.hour == 8:  # Saturday 08:00 → Sunday 08:00
-            sessions.append({
-                "session_start": current,
-                "session_close": current + timedelta(hours=24),
-                "session_type":  "weekday",
-                "session_dow":  "saturday"
-            })
-        elif dow == 6 and current.hour == 8:  # Sunday 08:00 → Monday 08:00
-            sessions.append({
-                "session_start": current,
-                "session_close": current + timedelta(hours=24),
-                "session_type":  "weekend",
-                "session_dow":  "sunday"
+                "session_close": current + dt.timedelta(hours=24),
+                "session_type": ('weekday' if 0 <= dow <= 4 else 'weekend'),
+                "session_dow": DOW_STR[dow]
             })
 
-        current += timedelta(hours=1)
+        current += dt.timedelta(hours=1)
 
     df        = pd.DataFrame(sessions)
     n_weekend = len(df[df.session_type == "weekend"])
@@ -222,10 +183,10 @@ def parse_instrument(name: str) -> dict:
     """
     try:
         parts       = name.split("-")
-        expiry_str  = parts[1]
+        expiry_str  = parts[1] + "-0800"
         strike      = float(parts[2])
         option_type = parts[3]
-        expiry      = pd.to_datetime(expiry_str, format="%d%b%y", utc=True)
+        expiry      = pd.to_datetime(expiry_str, format="%d%b%y%z", utc=True)
         return {"strike": strike, "expiry": expiry, "option_type": option_type}
     except Exception:
         return {"strike": np.nan, "expiry": pd.NaT, "option_type": None}
@@ -301,8 +262,8 @@ def identify_legs(entry_trades_df: pd.DataFrame,
     targets = {
         "atm_call": ("C", spot),
         "atm_put":  ("P", spot),
-        "otm_call": ("C", spot * 1.15),
-        "otm_put":  ("P", spot * 0.85),
+        "otm_call": ("C", spot * (1 + MONEYNESS)),
+        "otm_put":  ("P", spot * (1 - MONEYNESS)),
     }
 
     legs = []
@@ -323,7 +284,6 @@ def identify_legs(entry_trades_df: pd.DataFrame,
     ].reset_index(drop=True)
 
 # ── Step 5: Extract entry price per leg ──────────────────────────────────────
-
 
 def extract_entry_prices(entry_trades_df: pd.DataFrame,
                          legs_df:         pd.DataFrame,
@@ -380,8 +340,8 @@ def extract_entry_prices(entry_trades_df: pd.DataFrame,
 
         results.append({
         "entry_price":      entry_row["price"]            if "price"            in entry_row.index else np.nan,
-        "entry_iv":         entry_row["iv"]/100               if "iv"               in entry_row.index else np.nan,
-        "entry_underlying": entry_row["underlying_price"] if "underlying_price" in entry_row.index else np.nan,
+        "entry_iv":         entry_row["iv"]/100           if "iv"               in entry_row.index else np.nan,
+        "entry_underlying": entry_row["index_price"]      if "index_price" in entry_row.index else np.nan,
         "entry_gap_hours":  round(entry_gap_hours, 2),
         "data_quality_ok":  data_quality_ok,})
         print(f"    DEBUG entry_row type: {type(entry_row)}")
@@ -431,7 +391,7 @@ def collect_options_data(sessions:   pd.DataFrame,
               f"BTC=${spot:,.0f}")
 
         # Fetch trades in entry window only (session_start → +2h)
-        entry_end     = s_start + timedelta(hours=ENTRY_WINDOW_HOURS)
+        entry_end     = s_start + dt.timedelta(hours=ENTRY_WINDOW_HOURS)
         entry_trades  = fetch_trades(s_start, entry_end)
 
         if entry_trades.empty:

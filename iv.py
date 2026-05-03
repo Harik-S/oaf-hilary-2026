@@ -55,25 +55,20 @@ btc_prices = pd.read_csv("data/btc_prices.csv")
 btc_prices.rename(columns={"Unnamed: 0": "session_start"}, inplace=True)
 btc_prices = btc_prices.sort_values("session_start").reset_index(drop=True)
 btc_prices["session_start"] = pd.to_datetime(btc_prices["session_start"], utc=True)
-
-btc_prices["log_return"] = np.log(
-    btc_prices["close"] / btc_prices["close"].shift(1)
-)
-btc_prices["squared_log_return"] = btc_prices["log_return"] ** 2
-
+btc_prices["squared_log_returns"] = btc_prices["log_returns"] ** 2
 
 # Step 2: 1-day realized volatility (24 hours)
 btc_prices["rv_1d"] = (
-    np.sqrt((btc_prices["log_return"]**2).rolling(24).mean())
+    np.sqrt((btc_prices["log_returns"]**2).rolling(24).mean())
     * np.sqrt(365 * 24)
 )
 btc_prices["rv_7d"] = (
-    np.sqrt((btc_prices["log_return"] ** 2).rolling(7 * 24).mean())
+    np.sqrt((btc_prices["log_returns"] ** 2).rolling(7 * 24).mean())
     * np.sqrt(365 * 24)
 )
 btc_prices["rv_1d_forward"] = (
     np.sqrt(
-        btc_prices["squared_log_return"]
+        btc_prices["squared_log_returns"]
         .shift(-1)
         .rolling(24)
         .mean()
@@ -83,7 +78,6 @@ btc_prices["rv_1d_forward"] = (
 )
 btc_prices["session_hour"] = btc_prices["session_start"].dt.hour
 btc_prices["day_of_week"] = btc_prices["session_start"].dt.dayofweek
-
 
 HIST_WINDOW = 20
 MIN_HIST_PERIODS = 10
@@ -101,7 +95,8 @@ btc_prices["rv_historical_session_avg"] = (
 DOW_HIST_WINDOW = 12          # previous 12 same-DOW observations
 DOW_MIN_PERIODS = 4
 ALL_HIST_WINDOW = 24 * 60     # previous 60 days of hourly observations
-ALL_MIN_PERIODS = 24 * 14 
+ALL_MIN_PERIODS = 24 * 14
+
 btc_prices["hist_forward_dow"] = (
     btc_prices
     .groupby(["day_of_week", "session_hour"])["rv_1d_forward"]
@@ -130,26 +125,22 @@ btc_prices["dow_multiplier_yesterday"] = (
 )
 
 print(btc_prices.tail(20))
-# Merge rv_5d from btc_prices into session_signals based on matching session_start
+
+# Merge rv_1d from btc_prices into session_signals based on matching session_start
 btc_prices["rv_benchmark"] = (btc_prices["rv_1d"]*btc_prices["dow_multiplier"]/btc_prices["dow_multiplier_yesterday"])
 
-session_signals = session_signals.merge(btc_prices[["session_start", "rv_5d", "rv_1d", "dow_multiplier", "rv_benchmark", "dow_multiplier_yesterday"]], on="session_start", how="left")
+session_signals = session_signals.merge(btc_prices[["session_start", "rv_1d", "dow_multiplier", "rv_benchmark", "dow_multiplier_yesterday"]], on="session_start", how="left")
 
 session_signals["vrp"] = session_signals["atm_iv"] - session_signals["rv_benchmark"]
-session_signals["vrp"]
+
 VRP_RATIO_THRESHOLD = 1.25
 
 session_signals["vrp_ratio"] = (
     session_signals["atm_iv"]
     / session_signals["rv_benchmark"]
 )
-# Trade condition 1: VRP > THRESHOLD
-THRESHOLD = 0.05
-session_signals['signal'] = (session_signals['vrp'] > THRESHOLD) & (session_signals['iv_rank'] > 40)
-#session_signals = session_signals[session_signals["session_dow"] == "friday"]
-
 print(session_signals.describe())
 
 # write results back (at end)
-session_signals.to_csv("data/session_signals.csv", index=False)
+session_signals.to_csv("data/session_ivs.csv", index=False)
 
