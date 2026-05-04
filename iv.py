@@ -62,6 +62,7 @@ btc_prices["rv_1d"] = (
     np.sqrt((btc_prices["log_returns"]**2).rolling(24).mean())
     * np.sqrt(365 * 24)
 )
+
 btc_prices["rv_7d"] = (
     np.sqrt((btc_prices["log_returns"] ** 2).rolling(7 * 24).mean())
     * np.sqrt(365 * 24)
@@ -92,6 +93,7 @@ btc_prices["rv_historical_session_avg"] = (
         ).mean()
     )
 )
+
 DOW_HIST_WINDOW = 12          # previous 12 same-DOW observations
 DOW_MIN_PERIODS = 4
 ALL_HIST_WINDOW = 24 * 60     # previous 60 days of hourly observations
@@ -107,6 +109,7 @@ btc_prices["hist_forward_dow"] = (
         ).mean()
     )
 )
+
 btc_prices["hist_forward_all_days"] = (
     btc_prices["rv_1d_forward"]
     .shift(1)
