@@ -7,8 +7,9 @@ from collections import deque
 import os
 
 #deribit API
-clientID = "KQWpIu3V"
-clientSecret = "0GPGBoEWRgGGC0gtIxhQl57RJaDOQ8BbgJuTALbTDyY"
+clientID = 
+clientSecret = 
+# add api key here
 
 FIRST_TIME = "2021-01-01"
 
